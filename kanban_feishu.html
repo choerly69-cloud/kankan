@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>项目管理看板</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#F5F4F0;--surface:#FFFFFF;--surface2:#EFEDE8;
+  --border:rgba(0,0,0,0.07);--text:#1A1915;--text2:#6B6960;--text3:#A8A69E;
+  --green:#4A8C2A;--green-bg:#EAF3DE;--yellow:#B07A10;--yellow-bg:#FDF3DC;
+  --red:#C0392B;--red-bg:#FDECEA;--gray-bg:#EBEBEB;--radius:10px;--radius-sm:6px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+.header{display:flex;align-items:center;justify-content:space-between;padding:18px 28px 14px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;}
+.header-title{font-size:17px;font-weight:600;letter-spacing:-.2px;}
+.header-sub{font-size:12px;color:var(--text3);margin-left:10px;}
+.sync-btn{display:flex;align-items:center;gap:6px;padding:6px 16px;border-radius:20px;background:var(--text);color:#fff;font-size:12px;font-weight:500;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;transition:opacity .15s;}
+.sync-btn:hover{opacity:.8;}
+.sync-btn.loading{opacity:.6;pointer-events:none;}
+.last-sync{font-size:11px;color:var(--text3);margin-right:8px;}
+.main{padding:20px 28px 40px;}
+.error-msg{background:var(--red-bg);color:var(--red);padding:10px 16px;border-radius:var(--radius-sm);font-size:12px;margin-bottom:16px;display:none;line-height:1.5;}
+.section{margin-bottom:28px;}
+.section-head{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+.section-tag{font-size:10px;font-weight:600;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;}
+.section-line{flex:1;height:1px;background:var(--border);}
+.stats{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+.stat{flex:1;min-width:72px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;}
+.stat-num{font-size:21px;font-weight:600;line-height:1;}
+.stat-num.warn{color:var(--red);}
+.stat-num.ok{color:var(--green);}
+.stat-label{font-size:10px;color:var(--text3);margin-top:3px;}
+.board{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;}
+.board::-webkit-scrollbar{height:3px;}
+.board::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+.col{min-width:152px;flex:1;display:flex;flex-direction:column;gap:6px;}
+.col-header{display:flex;align-items:center;justify-content:space-between;padding:5px 10px;border-radius:var(--radius-sm);font-size:11px;font-weight:600;margin-bottom:2px;}
+.col-cnt{width:17px;height:17px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;}
+.card{background:var(--surface);border:1px solid var(--border);border-left:3px solid transparent;border-radius:var(--radius);padding:10px 12px;display:flex;flex-direction:column;gap:5px;transition:transform .12s,box-shadow .12s;}
+.card:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,0,0,.07);}
+.card.c-green{border-left-color:#52A447;}
+.card.c-yellow{border-left-color:#E5A020;}
+.card.c-red{border-left-color:#D94035;}
+.card.c-gray{border-left-color:#BBBBBB;}
+.card-title{font-size:12px;font-weight:500;line-height:1.45;color:var(--text);}
+.card-meta{display:flex;align-items:center;gap:5px;flex-wrap:wrap;}
+.avatar{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;flex-shrink:0;}
+.av0{background:#E6F1FB;color:#0C447C;} .av1{background:#EAF3DE;color:#3B6D11;}
+.av2{background:#FAEEDA;color:#854F0B;} .av3{background:#EEEDFE;color:#3C3489;}
+.av4{background:#FAECE7;color:#993C1D;} .av5{background:#E1F5EE;color:#0F6E56;}
+.person-name{font-size:10px;color:var(--text2);}
+.badge{font-size:9px;padding:2px 7px;border-radius:20px;font-weight:600;white-space:nowrap;margin-left:auto;}
+.b-green{background:var(--green-bg);color:var(--green);}
+.b-yellow{background:var(--yellow-bg);color:var(--yellow);}
+.b-red{background:var(--red-bg);color:var(--red);}
+.b-gray{background:var(--gray-bg);color:var(--text3);}
+.b-koc{background:#E1F5EE;color:#0F6E56;}
+.b-hot{background:#FDF3DC;color:#8A5C10;}
+.divider{height:1px;background:var(--border);margin:8px 0 24px;}
+.legend{display:flex;align-items:center;gap:14px;padding-top:12px;flex-wrap:wrap;}
+.li{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text3);}
+.ld{width:10px;height:10px;border-radius:3px;}
+.state-msg{text-align:center;padding:30px 10px;font-size:12px;color:var(--text3);}
+.spinner{width:13px;height:13px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;display:none;}
+.sync-btn.loading .spinner{display:block;}
+.sync-btn.loading .btn-text{display:none;}
+@keyframes spin{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div style="display:flex;align-items:baseline;">
+    <span class="header-title">项目管理看板</span>
+    <span class="header-sub">选题 · 项目</span>
+  </div>
+  <div style="display:flex;align-items:center;">
+    <span class="last-sync" id="lastSync">未同步</span>
+    <button class="sync-btn" id="syncBtn" onclick="loadAll()">
+      <div class="spinner"></div>
+      <span class="btn-text">↻ 刷新数据</span>
+    </button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="error-msg" id="errorMsg"></div>
+
+  <div class="section">
+    <div class="section-head">
+      <span class="section-tag">选题看板</span>
+      <div class="section-line"></div>
+    </div>
+    <div class="stats" id="stats-x"></div>
+    <div class="board" id="board-x"><div class="state-msg">点击「刷新数据」加载</div></div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="section">
+    <div class="section-head">
+      <span class="section-tag">项目看板</span>
+      <div class="section-line"></div>
+    </div>
+    <div class="stats" id="stats-p"></div>
+    <div class="board" id="board-p"><div class="state-msg">点击「刷新数据」加载</div></div>
+  </div>
+
+  <div class="legend">
+    <div class="li"><div class="ld" style="background:#D94035"></div>红色 · 超时预警</div>
+    <div class="li"><div class="ld" style="background:#E5A020"></div>黄色 · 临近截止（≤3天）</div>
+    <div class="li"><div class="ld" style="background:#52A447"></div>绿色 · 正常执行</div>
+    <div class="li"><div class="ld" style="background:#BBBBBB"></div>灰色 · 已完成/闭环</div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════
+//  ★ 唯一需要你填的地方 ★
+//  把下面 PiOVn71pA8aRDtgADI1fCfvhnm8n1yz5 换成你重置后的新 App Secret
+// ════════════════════════════════════════
+const APP_ID     = 'cli_aa84683904b99beb';
+const APP_SECRET = 'PiOVn71pA8aRDtgADI1fCfvhnm8n1yz5';   // ← 只改这里
+
+// 以下不需要动
+const WIKI_TOKEN     = 'Lm1kwXJDxivOvhkwQDMcsdkgnih';
+const XUANTI_TABLE   = 'tbl6aZIDYJbrNUfO';
+const PROJECT_TABLE  = 'tblEQrlQYf8Lw9uj';
+
+const XUANTI_STAGES  = ['资源推进','商务推进','选题包制作','选题包审核','资源确认下单','传播台账','已完成'];
+const PROJECT_STAGES = ['立项','采购','议价','执行中','验收','闭环'];
+
+const COL_STYLES = [
+  {bg:'#F1EFE8',fg:'#5F5E5A',cb:'#D3D1C7',cf:'#444441'},
+  {bg:'#FAEEDA',fg:'#854F0B',cb:'#FAC775',cf:'#633806'},
+  {bg:'#FAEEDA',fg:'#854F0B',cb:'#FAC775',cf:'#633806'},
+  {bg:'#E1F5EE',fg:'#0F6E56',cb:'#9FE1CB',cf:'#085041'},
+  {bg:'#E6F1FB',fg:'#185FA5',cb:'#B5D4F4',cf:'#0C447C'},
+  {bg:'#EAF3DE',fg:'#3B6D11',cb:'#C0DD97',cf:'#27500A'},
+  {bg:'#EBEBEB',fg:'#555555',cb:'#D4D4D4',cf:'#444444'},
+];
+
+// ── 飞书 API ──
+let _token=null, _tokenExp=0;
+
+async function getToken() {
+  if (_token && Date.now() < _tokenExp) return _token;
+  const r = await fetch('/feishu-api/open-apis/auth/v3/tenant_access_token/internal', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({app_id:APP_ID, app_secret:APP_SECRET})
+  });
+  const d = await r.json();
+  if (d.code !== 0) throw new Error('鉴权失败：' + d.msg + '。请检查 App ID 和 App Secret。');
+  _token = d.tenant_access_token;
+  _tokenExp = Date.now() + (d.expire - 60) * 1000;
+  return _token;
+}
+
+// Wiki 多维表格需要先拿 obj_token（即 app_token）
+let _appToken = null;
+async function getAppToken() {
+  if (_appToken) return _appToken;
+  const token = await getToken();
+  const r = await fetch(`/feishu-api/open-apis/wiki/v2/spaces/get_node?token=${WIKI_TOKEN}`, {
+    headers:{Authorization:'Bearer '+token}
+  });
+  const d = await r.json();
+  if (d.code !== 0) throw new Error('获取Wiki节点失败：' + d.msg);
+  _appToken = d.data.node.obj_token;
+  return _appToken;
+}
+
+async function fetchRecords(tableId) {
+  const token    = await getToken();
+  const appToken = await getAppToken();
+  let records=[], pageToken=null;
+  do {
+    const url = new URL(`http://localhost:8080/feishu-api/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/records`);
+    url.searchParams.set('page_size','100');
+    if (pageToken) url.searchParams.set('page_token', pageToken);
+    const r = await fetch(url, {headers:{Authorization:'Bearer '+token}});
+    const d = await r.json();
+    if (d.code !== 0) throw new Error('读取表格失败：' + d.msg);
+    records.push(...(d.data.items||[]));
+    pageToken = d.data.has_more ? d.data.page_token : null;
+  } while (pageToken);
+  return records;
+}
+
+// ── 字段读取 ──
+function getField(record, name) {
+  const v = record.fields[name];
+  if (v === undefined || v === null) return null;
+  if (Array.isArray(v) && v[0]?.name) return v.map(x=>x.name).join('、');
+  if (Array.isArray(v) && v[0]?.text !== undefined) return v.map(x=>x.text).join('');
+  if (typeof v === 'number' && v > 1e12) return v;
+  return v;
+}
+
+function daysSince(ts) { if(!ts) return null; return Math.floor((Date.now()-ts)/86400000); }
+function daysUntil(ts) { if(!ts) return null; return Math.floor((ts-Date.now())/86400000); }
+
+function getStatus(type, r) {
+  if (type==='xuanti') {
+    const stage = getField(r,'当前环节');
+    if (stage==='已完成') return 'gray';
+    const d = daysSince(getField(r,'进入当前环节时间'));
+    return (d!==null && d>1) ? 'red' : 'green';
+  } else {
+    const stage = getField(r,'当前阶段');
+    if (stage==='闭环') return 'gray';
+    const left = daysUntil(getField(r,'计划完成时间'));
+    if (left!==null) { if(left<0) return 'red'; if(left<=3) return 'yellow'; return 'green'; }
+    const exec = daysSince(getField(r,'阶段进入时间'));
+    return (exec!==null && exec>7) ? 'yellow' : 'green';
+  }
+}
+
+function getBadge(type, r) {
+  if (type==='xuanti') {
+    const stage = getField(r,'当前环节');
+    if (stage==='已完成') return {cls:'b-gray',text:'已完成'};
+    const d = daysSince(getField(r,'进入当前环节时间'));
+    if (d===null) return null;
+    if (d>1) return {cls:'b-red',text:`超时 ${d}天`};
+    if (stage==='传播台账') return {cls:'b-green',text:'周更中'};
+    return {cls:'b-green',text:`已执行 ${d}天`};
+  } else {
+    const stage = getField(r,'当前阶段');
+    if (stage==='闭环') return {cls:'b-gray',text:'已闭环'};
+    const left = daysUntil(getField(r,'计划完成时间'));
+    if (left!==null) {
+      if (left<0) return {cls:'b-red',text:`超时 ${Math.abs(left)}天`};
+      if (left<=3) return {cls:'b-yellow',text:`还剩 ${left}天`};
+      return {cls:'b-green',text:`还剩 ${left}天`};
+    }
+    const exec = daysSince(getField(r,'阶段进入时间'));
+    return exec!==null ? {cls:'b-green',text:`已执行 ${exec}天`} : null;
+  }
+}
+
+// ── 渲染 ──
+const AV=['av0','av1','av2','av3','av4','av5'];
+const ownerMap={}; let ownerIdx=0;
+function avColor(n){if(!n)return'av0';if(!ownerMap[n])ownerMap[n]=AV[ownerIdx++%AV.length];return ownerMap[n];}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+function renderCard(type, r) {
+  const titleField = type==='xuanti' ? '选题名称' : '项目名称';
+  const ownerField = type==='xuanti' ? '当前负责人' : '项目负责人';
+  const title  = getField(r, titleField) || '（无标题）';
+  const owner  = getField(r, ownerField) || '';
+  const status = getStatus(type, r);
+  const badge  = getBadge(type, r);
+  const resType= type==='xuanti' ? getField(r,'资源类型') : null;
+  const av     = avColor(owner);
+  const bHtml  = badge ? `<span class="badge ${badge.cls}">${badge.text}</span>` : '';
+  const resHtml= resType ? `<div style="margin-top:1px"><span class="badge ${resType==='KOC'?'b-koc':'b-hot'}">${esc(resType)}</span></div>` : '';
+  return `<div class="card c-${status}">
+    <div class="card-title">${esc(title)}</div>
+    <div class="card-meta">
+      <div class="avatar ${av}">${esc((owner||'?')[0])}</div>
+      <span class="person-name">${esc(owner)}</span>
+      ${bHtml}
+    </div>
+    ${resHtml}
+  </div>`;
+}
+
+function renderBoard(type, records) {
+  const stageField = type==='xuanti' ? '当前环节' : '当前阶段';
+  const stages     = type==='xuanti' ? XUANTI_STAGES : PROJECT_STAGES;
+  const boardEl    = document.getElementById(type==='xuanti'?'board-x':'board-p');
+  const statsEl    = document.getElementById(type==='xuanti'?'stats-x':'stats-p');
+
+  const grouped={};
+  stages.forEach(s=>grouped[s]=[]);
+  records.forEach(r=>{
+    const s=getField(r,stageField)||stages[0];
+    if(!grouped[s]) grouped[s]=[];
+    grouped[s].push(r);
+  });
+
+  let html='';
+  stages.forEach((stage,i)=>{
+    const items=grouped[stage]||[];
+    const st=COL_STYLES[i]||COL_STYLES[0];
+    html+=`<div class="col">
+      <div class="col-header" style="background:${st.bg};color:${st.fg}">
+        <span>${esc(stage)}</span>
+        <span class="col-cnt" style="background:${st.cb};color:${st.cf}">${items.length}</span>
+      </div>
+      ${items.length ? items.map(r=>renderCard(type,r)).join('') : '<div class="state-msg" style="padding:14px 0;font-size:11px">暂无</div>'}
+    </div>`;
+  });
+  boardEl.innerHTML=html;
+
+  const done     = records.filter(r=>{ const s=getField(r,stageField); return s==='已完成'||s==='闭环'; }).length;
+  const overtime = records.filter(r=>getStatus(type,r)==='red').length;
+  const warning  = records.filter(r=>getStatus(type,r)==='yellow').length;
+  const active   = records.length - done;
+  statsEl.innerHTML=`
+    <div class="stat"><div class="stat-num">${active}</div><div class="stat-label">进行中</div></div>
+    <div class="stat"><div class="stat-num warn">${overtime}</div><div class="stat-label">超时预警</div></div>
+    <div class="stat"><div class="stat-num" style="color:#B07A10">${warning}</div><div class="stat-label">临近截止</div></div>
+    <div class="stat"><div class="stat-num ok">${done}</div><div class="stat-label">${type==='xuanti'?'已完成':'已闭环'}</div></div>`;
+}
+
+// ── 主流程 ──
+async function loadAll() {
+  const btn=document.getElementById('syncBtn');
+  const err=document.getElementById('errorMsg');
+  btn.classList.add('loading');
+  err.style.display='none';
+  try {
+    const [xRecs, pRecs] = await Promise.all([
+      fetchRecords(XUANTI_TABLE),
+      fetchRecords(PROJECT_TABLE),
+    ]);
+    renderBoard('xuanti',  xRecs);
+    renderBoard('project', pRecs);
+    document.getElementById('lastSync').textContent =
+      '上次同步 ' + new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
+  } catch(e) {
+    err.textContent = '⚠ 加载失败：' + e.message;
+    err.style.display='block';
+  } finally {
+    btn.classList.remove('loading');
+  }
+}
+
+window.addEventListener('DOMContentLoaded', loadAll);
+</script>
+</body>
+</html>
