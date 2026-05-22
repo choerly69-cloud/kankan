@@ -113,7 +113,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     <div class="li"><div class="ld" style="background:#D94035"></div>红色 · 超时预警</div>
     <div class="li"><div class="ld" style="background:#E5A020"></div>黄色 · 临近截止（≤3天）</div>
     <div class="li"><div class="ld" style="background:#52A447"></div>绿色 · 正常执行</div>
-    <div class="li"><div class="ld" style="background:#BBBBBB"></div>灰色 · 已完成/闭环</div>
+    <div class="li"><div class="ld" style="background:#BBBBBB"></div>灰色 · 已闭环</div>
   </div>
 </div>
 
@@ -130,8 +130,8 @@ const WIKI_TOKEN     = 'Lm1kwXJDxivOvhkwQDMcsdkgnih';
 const XUANTI_TABLE   = 'tbl6aZIDYJbrNUfO';
 const PROJECT_TABLE  = 'tblEQrlQYf8Lw9uj';
 
-const XUANTI_STAGES  = ['资源推进','商务推进','选题包制作','选题包审核','资源确认下单','传播台账','已完成'];
-const PROJECT_STAGES = ['立项','采购','议价','执行中','验收','闭环'];
+const XUANTI_STAGES  = ['资源推进','商务推进','选题包制作','选题包审核','资源确认和下单','内容执行','传播台账','已闭环'];
+const PROJECT_STAGES = ['立项','采购','议价/招标','合同','执行中','验收','已闭环'];
 
 const COL_STYLES = [
   {bg:'#F1EFE8',fg:'#5F5E5A',cb:'#D3D1C7',cf:'#444441'},
@@ -207,39 +207,46 @@ function daysUntil(ts) { if(!ts) return null; return Math.floor((ts-Date.now())/
 function getStatus(type, r) {
   if (type==='xuanti') {
     const stage = getField(r,'当前环节');
-    if (stage==='已完成') return 'gray';
-    const d = daysSince(getField(r,'进入当前环节时间'));
-    return (d!==null && d>1) ? 'red' : 'green';
+    if(stage==='已闭环') return 'gray';
+    const left = daysUntil(getField(r,'计划完成时间'));
+    if(left!==null){ if(left<0) return 'red'; if(left<=1) return 'yellow'; return 'green'; }
+    return 'green';
   } else {
     const stage = getField(r,'当前阶段');
-    if (stage==='闭环') return 'gray';
+    if(stage==='已闭环') return 'gray';
     const left = daysUntil(getField(r,'计划完成时间'));
-    if (left!==null) { if(left<0) return 'red'; if(left<=3) return 'yellow'; return 'green'; }
-    const exec = daysSince(getField(r,'阶段进入时间'));
-    return (exec!==null && exec>7) ? 'yellow' : 'green';
+    if(left!==null){ if(left<0) return 'red'; if(left<=1) return 'yellow'; return 'green'; }
+    return 'green';
   }
 }
 
 function getBadge(type, r) {
   if (type==='xuanti') {
     const stage = getField(r,'当前环节');
-    if (stage==='已完成') return {cls:'b-gray',text:'已完成'};
+    if(stage==='已闭环') return {cls:'b-gray',text:'已闭环'};
+    const plan = getField(r,'计划完成时间');
+    if(plan!==null){
+      const left = daysUntil(plan);
+      if(left<0) return {cls:'b-red',text:`超时 ${Math.abs(left)}天`};
+      if(left<=1) return {cls:'b-yellow',text:`临近截止 ${left}天`};
+      return {cls:'b-green',text:`还剩 ${left}天`};
+    }
     const d = daysSince(getField(r,'进入当前环节时间'));
-    if (d===null) return null;
-    if (d>1) return {cls:'b-red',text:`超时 ${d}天`};
-    if (stage==='传播台账') return {cls:'b-green',text:'周更中'};
-    return {cls:'b-green',text:`已执行 ${d}天`};
+    if(d===null) return null;
+    return {cls:'b-green',text:`已停留 ${d}天`};
   } else {
     const stage = getField(r,'当前阶段');
-    if (stage==='闭环') return {cls:'b-gray',text:'已闭环'};
-    const left = daysUntil(getField(r,'计划完成时间'));
-    if (left!==null) {
-      if (left<0) return {cls:'b-red',text:`超时 ${Math.abs(left)}天`};
-      if (left<=3) return {cls:'b-yellow',text:`还剩 ${left}天`};
+    if(stage==='已闭环') return {cls:'b-gray',text:'已闭环'};
+    const plan = getField(r,'计划完成时间');
+    if(plan!==null){
+      const left = daysUntil(plan);
+      if(left<0) return {cls:'b-red',text:`超时 ${Math.abs(left)}天`};
+      if(left<=1) return {cls:'b-yellow',text:`临近截止 ${left}天`};
       return {cls:'b-green',text:`还剩 ${left}天`};
     }
     const exec = daysSince(getField(r,'阶段进入时间'));
-    return exec!==null ? {cls:'b-green',text:`已执行 ${exec}天`} : null;
+    if(exec===null) return null;
+    return {cls:'b-green',text:`已停留 ${exec}天`};
   }
 }
 
@@ -299,15 +306,30 @@ function renderBoard(type, records) {
   });
   boardEl.innerHTML=html;
 
-  const done     = records.filter(r=>{ const s=getField(r,stageField); return s==='已完成'||s==='闭环'; }).length;
+  const done     = records.filter(r=>{ const s=getField(r,stageField); return s==='已闭环'; }).length;
   const overtime = records.filter(r=>getStatus(type,r)==='red').length;
   const warning  = records.filter(r=>getStatus(type,r)==='yellow').length;
   const active   = records.length - done;
+  // 本周已完成：周一到周日
+  function getWeekStart() {
+    const now = new Date();
+    const day = now.getDay();
+    const diff = (day===0) ? 6 : day-1;
+    const mon = new Date(now); mon.setHours(0,0,0,0); mon.setDate(now.getDate()-diff);
+    return mon.getTime();
+  }
+  const weekDone = records.filter(r=>{
+    const s=getField(r,stageField);
+    if(s!=='已闭环') return false;
+    const d=getField(r,'进入当前环节时间')||getField(r,'阶段进入时间');
+    if(!d) return false;
+    return d>=getWeekStart() && d<getWeekStart()+7*86400000;
+  }).length;
   statsEl.innerHTML=`
     <div class="stat"><div class="stat-num">${active}</div><div class="stat-label">进行中</div></div>
     <div class="stat"><div class="stat-num warn">${overtime}</div><div class="stat-label">超时预警</div></div>
     <div class="stat"><div class="stat-num" style="color:#B07A10">${warning}</div><div class="stat-label">临近截止</div></div>
-    <div class="stat"><div class="stat-num ok">${done}</div><div class="stat-label">${type==='xuanti'?'已完成':'已闭环'}</div></div>`;
+    <div class="stat"><div class="stat-num ok">${weekDone}</div><div class="stat-label">本周已完成</div></div>`;
 }
 
 // ── 主流程 ──
